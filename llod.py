@@ -69,12 +69,6 @@ def detect_objects(image, model):
     results = model(image)  # ทำการตรวจจับวัตถุ
     return results
 
-# ปรับ Contrast
-def adjust_contrast(image, factor=1.3):
-    # alpha: 1.0 จะไม่เปลี่ยนแปลง, ค่ามากกว่า 1 จะเพิ่ม contrast, ค่าน้อยกว่า 1 จะลด contrast
-    contrast_image = cv2.convertScaleAbs(image, alpha=factor, beta=0)
-    return contrast_image
-
 # การแปลงภาพ
 transform = transforms.Compose([
     transforms.Resize((512, 512)),
