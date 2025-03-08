@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as Func
 import torchvision.transforms as transforms
 from PIL import Image
 import tkinter as tk
@@ -12,7 +12,7 @@ from ultralytics import YOLO
 # กำหนดอุปกรณ์ (ใช้ GPU ถ้ามี)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# โครงสร้างของโมเดล Zero-DCE ที่ตรงกับ Epoch99.pth
+# โครงสร้างของโมเดล Zero-DCE (Zero-Reference Deep Curve Estimation)
 class ZeroDCE(nn.Module):
     def __init__(self):
         super(ZeroDCE, self).__init__()
@@ -33,7 +33,7 @@ class ZeroDCE(nn.Module):
         x4 = self.relu(self.e_conv4(x3))
         x5 = self.relu(self.e_conv5(torch.cat([x3,x4],1)))
         x6 = self.relu(self.e_conv6(torch.cat([x2,x5],1)))
-        x_r = F.tanh(self.e_conv7(torch.cat([x1,x6],1))) * 2.5
+        x_r = Func.tanh(self.e_conv7(torch.cat([x1,x6],1))) * 2.5
         r1,r2,r3,r4,r5,r6,r7,r8 = torch.split(x_r, 3, dim=1)
         x = x + r1*(torch.pow(x,2)-x)
         x = x + r2*(torch.pow(x,2)-x)
@@ -55,18 +55,22 @@ yolo_model = YOLO("models/yolo12l.pt")
 
 # ฟังก์ชันปรับปรุงภาพแสงน้อย
 def enhance_image(image_path, model, transform, device):
+    # โหลดภาพต้นฉบับและปรับแสง
     original_image = Image.open(image_path).convert("RGB")
     original_size = original_image.size
+
     image = transform(original_image).unsqueeze(0).to(device)
     with torch.no_grad():
         enhanced_image = model(image)[0].squeeze(0).cpu()
+
+    # แปลงจาก Tensor กลับเป็น PIL
     enhanced_image = transforms.ToPILImage()(enhanced_image)
     enhanced_image = enhanced_image.resize(original_size, Image.LANCZOS)
     return original_image, enhanced_image
 
 # ฟังก์ชันสำหรับตรวจจับวัตถุด้วย YOLO
 def detect_objects(image, model):
-    results = model(image)  # ทำการตรวจจับวัตถุ
+    results = model(image)
     return results
 
 # การแปลงภาพ
@@ -83,17 +87,19 @@ file_path = filedialog.askopenfilename(title="Choose file", filetypes=[("Image F
 
 if file_path:
     original_image, enhanced_image = enhance_image(file_path, model, transform, device)
+
+    #แปลงภาพจาก PIL เป็น NumPy array เพื่อใช้กับ OpenCV
     original_cv = cv2.cvtColor(np.array(original_image), cv2.COLOR_RGB2BGR)
     enhanced_cv = cv2.cvtColor(np.array(enhanced_image), cv2.COLOR_RGB2BGR)
 
-    # ปรับปรุงภาพหลังจากใช้ Zero-DCE
-    brightened_image = cv2.convertScaleAbs(enhanced_cv, alpha=1.4, beta=1)  # เพิ่มความสว่าง
+    #ปรับปรุงภาพหลังจากใช้ Zero-DCE (Contrast, Brightness)
+    brightened_image = cv2.convertScaleAbs(enhanced_cv, alpha=1.4, beta=1)
 
     #Unsharp Masking ถ้ามากไปเกิด Ringing
-    sharped_image = cv2.addWeighted(brightened_image, 1.3, cv2.GaussianBlur(enhanced_cv, (0,0), 1), -0.3, 0)
+    sharpened_image = cv2.addWeighted(brightened_image, 1.3, cv2.GaussianBlur(enhanced_cv, (0,0), 1), -0.3, 0)
 
     # ตรวจจับวัตถุบนภาพที่ผ่านการปรับปรุงแล้ว
-    results = detect_objects(sharped_image, yolo_model)
+    results = detect_objects(sharpened_image, yolo_model)
     annotated_cv = results[0].plot()
 
     # ปรับขนาดภาพเพื่อแสดงผล
@@ -104,6 +110,7 @@ if file_path:
     original_resized = cv2.resize(original_cv, new_size, interpolation=cv2.INTER_LINEAR)
     detected_resized = cv2.resize(annotated_cv, new_size, interpolation=cv2.INTER_LINEAR)
 
+    #แสดงภาพ
     cv2.imshow("Original Image", original_resized)
     cv2.imshow("Enchanted and Detected", detected_resized)
     cv2.waitKey(0)
