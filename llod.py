@@ -39,10 +39,13 @@ class ZeroDCE(nn.Module):
         x = x + r2*(torch.pow(x,2)-x)
         x = x + r3*(torch.pow(x,2)-x)
         enhance_image_1 = x + r4*(torch.pow(x,2)-x)
+        
+        #use encahnce_image for darker
         x = enhance_image_1 + r5*(torch.pow(enhance_image_1,2)-enhance_image_1)
         x = x + r6*(torch.pow(x,2)-x)
         x = x + r7*(torch.pow(x,2)-x)
         enhance_image = x + r8*(torch.pow(x,2)-x)
+        
         return enhance_image_1, enhance_image
 
 # โหลดโมเดลจากไฟล์
@@ -53,25 +56,28 @@ model.eval()
 
 yolo_model = YOLO("models/yolo12l.pt")
 
-# ฟังก์ชันปรับปรุงภาพแสงน้อย
-def enhance_image(image_path, model, transform, device):
-    # โหลดภาพต้นฉบับและปรับแสง
-    original_image = Image.open(image_path).convert("RGB")
-    original_size = original_image.size
-
-    image = transform(original_image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        enhanced_image = model(image)[0].squeeze(0).cpu()
-
-    # แปลงจาก Tensor กลับเป็น PIL
-    enhanced_image = transforms.ToPILImage()(enhanced_image)
-    enhanced_image = enhanced_image.resize(original_size, Image.LANCZOS)
-    return original_image, enhanced_image
-
 # ฟังก์ชันสำหรับตรวจจับวัตถุด้วย YOLO
 def detect_objects(image, model):
     results = model(image)
     return results
+
+# ฟังก์ชันปรับปรุงภาพแสงน้อย
+def enhance_image(image_path, model, transform, device):
+
+    # เปิดรูปด้วย PIL และแปลงเป็น RGB
+    original_image = Image.open(image_path).convert("RGB")
+    original_size = original_image.size
+
+    # แปลงรูปเป็น Tensor และส่งไปที่ GPU
+    image = transform(original_image).unsqueeze(0).to(device)
+    with torch.no_grad(): # ปิดการเรียนรู้ เพื่อลดการใช้หน่วยความจำ
+        enhanced_image = model(image)[0].squeeze(0).cpu()
+
+    # แปลงกลับจาก Tensor เป็นรูปภาพปกติ
+    enhanced_image = transforms.ToPILImage()(enhanced_image)
+    enhanced_image = enhanced_image.resize(original_size, Image.LANCZOS)
+    return original_image, enhanced_image
+
 
 # การแปลงภาพ
 transform = transforms.Compose([
@@ -79,12 +85,16 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-# เลือกไฟล์ภาพจากคอมพิวเตอร์
+# ซ่อนหน้าต่างหลักของ Tkinter
 root = tk.Tk()
 root.withdraw()
-file_path = filedialog.askopenfilename(title="Choose file", filetypes=[("Image Files", "*.jpg;*.jpeg;*.png;*.webp")])
 
+# เปิดหน้าต่างให้ผู้ใช้เลือกไฟล์ภาพ
+file_path = filedialog.askopenfilename(
+    title="Choose file", 
+    filetypes=[("Image Files", "*.jpg;*.jpeg;*.png;*.webp")])
 
+# ถ้าผู้ใช้เลือกไฟล์ ระบบจะนำไปประมวลผล
 if file_path:
     original_image, enhanced_image = enhance_image(file_path, model, transform, device)
 
@@ -97,7 +107,7 @@ if file_path:
 
     #Unsharp Masking ถ้ามากไปเกิด Ringing
     sharpened_image = cv2.addWeighted(brightened_image, 1.3, cv2.GaussianBlur(enhanced_cv, (0,0), 1), -0.3, 0)
-
+    
     # ตรวจจับวัตถุบนภาพที่ผ่านการปรับปรุงแล้ว
     results = detect_objects(sharpened_image, yolo_model)
     annotated_cv = results[0].plot()
