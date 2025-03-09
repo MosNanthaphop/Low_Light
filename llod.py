@@ -70,6 +70,7 @@ def enhance_image(image_path, model, transform, device):
 
     # แปลงรูปเป็น Tensor และส่งไปที่ GPU
     image = transform(original_image).unsqueeze(0).to(device)
+
     with torch.no_grad(): # ปิดการเรียนรู้ เพื่อลดการใช้หน่วยความจำ
         enhanced_image = model(image)[0].squeeze(0).cpu()
 
@@ -118,10 +119,14 @@ if file_path:
     scale = min(max_size / max(h, w), 1.0)
     new_size = (int(w * scale), int(h * scale))
     original_resized = cv2.resize(original_cv, new_size, interpolation=cv2.INTER_LINEAR)
+    #enhanced_resized = cv2.resize(enhanced_cv, new_size, interpolation=cv2.INTER_LINEAR)
+    #sharpened_resized = cv2.resize(sharpened_image, new_size, interpolation=cv2.INTER_LINEAR)
     detected_resized = cv2.resize(annotated_cv, new_size, interpolation=cv2.INTER_LINEAR)
 
     #แสดงภาพ
     cv2.imshow("Original Image", original_resized)
-    cv2.imshow("Enchanted and Detected", detected_resized)
+    #cv2.imshow("Zero-DCE Image", enhanced_resized)
+    #cv2.imshow("Unsharp and Brightness Image", sharpened_resized)
+    cv2.imshow("Detected Image", detected_resized)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
